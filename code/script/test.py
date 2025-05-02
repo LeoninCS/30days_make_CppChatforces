@@ -3,8 +3,8 @@ import json
 
 # 构造注册请求
 request = {
-    "msgid": 1,
-    "id": 5,
+    "msgid": 2,
+    "id": 3,
     "password": "123456"
 }
 
