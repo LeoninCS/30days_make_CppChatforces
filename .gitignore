@@ -30,3 +30,6 @@
 *.exe
 *.out
 *.app
+# 忽略 bin 和 build 目录
+/bin/
+/build/

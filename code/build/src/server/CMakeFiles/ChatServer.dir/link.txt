@@ -1,0 +1,1 @@
+/usr/bin/g++  -std=c++17 -g -g CMakeFiles/ChatServer.dir/db/db.cpp.o CMakeFiles/ChatServer.dir/ChatServer.cpp.o CMakeFiles/ChatServer.dir/ChatService.cpp.o CMakeFiles/ChatServer.dir/UserModel.cpp.o CMakeFiles/ChatServer.dir/main.cpp.o -o /home/leon/repositories/30days_make_CPPChatforces/code/bin/ChatServer  -lmuduo_net -lmuduo_base -lmysqlclient -lpthread 
