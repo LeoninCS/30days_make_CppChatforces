@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <functional>
 #include "UserModel.hpp"
+#include "OfflineMessageModel.hpp"
 #include "json.hpp"
 #include <string>
 #include <mutex>
@@ -30,6 +31,7 @@ public:
     //处理客户端异常退出
     void clientCloseException(const TcpConnectionPtr& conn);
     //一对一聊天
+    void oneChat(const TcpConnectionPtr& conn, const json& js, Timestamp time);
 private:
     ChatService();
     //存取id和消息处理函数
@@ -40,7 +42,9 @@ private:
     //互斥锁
     mutex _connMutex;
 
+    //操作用户表的对象
     UserModel _userModel;
+    OfflineMessageModel _offlineMsgModel;
 };
 
 #endif

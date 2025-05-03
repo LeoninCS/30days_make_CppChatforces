@@ -16,6 +16,7 @@ ChatService*  ChatService::instance(){
 ChatService::ChatService() {
     _msgHandlerMap.insert({LOGIN_MSG, std::bind(&ChatService::login, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)});
     _msgHandlerMap.insert({REG_MSG, std::bind(&ChatService::reg, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)});
+    _msgHandlerMap.insert({ONE_CHAT_MSG, std::bind(&ChatService::oneChat, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)});
 }
 
 
@@ -49,7 +50,15 @@ void ChatService::login(const TcpConnectionPtr& conn, const json& js, Timestamp 
             response["errno"] = 0;
             response["id"] = user.getId();
             response["name"] = user.getName();
-            LOG_INFO << "send message";
+            //将离线消息发送给用户
+            vector<string> vec = _offlineMsgModel.query(id);
+            while (!vec.empty()) {
+                response["msg"] = vec.back();
+                vec.pop_back();
+                conn->send(response.dump());
+            }
+            //清除离线消息
+            _offlineMsgModel.remove(id);
             conn->send(response.dump());
         }
     } else {
@@ -98,7 +107,6 @@ void ChatService::reg(const TcpConnectionPtr& conn, const json& js, Timestamp ti
         //失败
     }
 }
-
 //debug
 /*
 void ChatService::reg(const TcpConnectionPtr& conn, const json& js, Timestamp time) {
@@ -166,5 +174,22 @@ void ChatService::clientCloseException(const TcpConnectionPtr& conn) {
     if (user.getId() != -1) {
         user.setState("offline");
         _userModel.updateState(user);
+    }
+}
+
+//一对一聊天
+void ChatService::oneChat(const TcpConnectionPtr& conn, const json& js, Timestamp time) {
+    int toid = js["id"].get<int>();
+    {
+        lock_guard<mutex> lock(_connMutex);
+        auto it = _userConnMap.find(toid);
+        if (it != _userConnMap.end()) {
+            //在线转发
+            it->second->send(js.dump());
+            return;
+        } else {
+            //离线存储
+            _offlineMsgModel.insert(toid, js);
+        }
     }
 }
