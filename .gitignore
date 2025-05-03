@@ -31,5 +31,11 @@
 *.out
 *.app
 
-bin/
-build/
+# 忽略 bin/ 和 build/ 中的所有内容
+bin/*
+build/*
+
+# 但不忽略 bin/ 和 build/ 文件夹本身
+!bin/.gitkeep
+!build/.gitkeep
+

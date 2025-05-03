@@ -29,6 +29,7 @@ public:
     MsgHandler getHandler(int msgid);
     //处理客户端异常退出
     void clientCloseException(const TcpConnectionPtr& conn);
+    //一对一聊天
 private:
     ChatService();
     //存取id和消息处理函数
