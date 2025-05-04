@@ -90,3 +90,16 @@ bool UserModel::updateState(User &user) {
     }
     return false;
 }
+
+void UserModel::resetState() {
+    char sql[1024] = "update user set state = 'offline' where state = 'online'";
+    MySQL mysql;
+    if (mysql.connect()) {
+        std::cout << "MySQL connect success!" << std::endl;
+        if (mysql.update(sql)) {
+            std::cout << "重置用户状态成功" << std::endl;
+        }
+    } else {
+        std::cout << "MySQL connect failed!" << std::endl;        
+    }
+}

@@ -1,5 +1,6 @@
 #include "public.hpp"
 #include "ChatService.hpp"
+#include "FriendModel.hpp"
 #include <muduo/base/Logging.h>
 #include <iostream>
 #include <string>
@@ -17,6 +18,7 @@ ChatService::ChatService() {
     _msgHandlerMap.insert({LOGIN_MSG, std::bind(&ChatService::login, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)});
     _msgHandlerMap.insert({REG_MSG, std::bind(&ChatService::reg, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)});
     _msgHandlerMap.insert({ONE_CHAT_MSG, std::bind(&ChatService::oneChat, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)});
+    _msgHandlerMap.insert({ADD_FRIEND_MSG, std::bind(&ChatService::addFriend, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)});
 }
 
 
@@ -60,6 +62,22 @@ void ChatService::login(const TcpConnectionPtr& conn, const json& js, Timestamp 
             //清除离线消息
             _offlineMsgModel.remove(id);
             conn->send(response.dump());
+
+            //查询好友列表
+            vector<User> userVec = _friendModel.query(id);
+            if (!userVec.empty()) {
+                vector<string> friendList;
+                for (const auto& friendUser : userVec) {
+                    json friendInfo;
+                    friendInfo["id"] = friendUser.getId();
+                    friendInfo["name"] = friendUser.getName();
+                    friendInfo["state"] = friendUser.getState();
+                    friendList.push_back(friendInfo.dump());
+                }
+                response["friends"] = friendList;
+            } else {
+                response["friends"] = json::array();
+            }
         }
     } else {
         
@@ -191,5 +209,20 @@ void ChatService::oneChat(const TcpConnectionPtr& conn, const json& js, Timestam
             //离线存储
             _offlineMsgModel.insert(toid, js);
         }
+    }
+}
+
+//重置状态信息，全部下线
+void ChatService::reset() {
+    _userModel.resetState();
+}
+
+//添加好友
+void ChatService::addFriend(const TcpConnectionPtr& conn, const json& js, Timestamp time) {
+    int userId = js["id"].get<int>();
+    int friendId = js["friendId"].get<int>();
+    {
+        lock_guard<mutex> lock(_connMutex);
+        _friendModel.addFriend(userId, friendId);
     }
 }

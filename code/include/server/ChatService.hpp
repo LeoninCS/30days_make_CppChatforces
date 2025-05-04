@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <functional>
 #include "UserModel.hpp"
+#include "FriendModel.hpp"
 #include "OfflineMessageModel.hpp"
 #include "json.hpp"
 #include <string>
@@ -32,6 +33,12 @@ public:
     void clientCloseException(const TcpConnectionPtr& conn);
     //一对一聊天
     void oneChat(const TcpConnectionPtr& conn, const json& js, Timestamp time);
+    
+    //添加好友
+    void addFriend(const TcpConnectionPtr& conn, const json& js, Timestamp time);
+    
+    //异常重置
+    void reset();
 private:
     ChatService();
     //存取id和消息处理函数
@@ -45,6 +52,7 @@ private:
     //操作用户表的对象
     UserModel _userModel;
     OfflineMessageModel _offlineMsgModel;
+    FriendModel _friendModel;
 };
 
 #endif
