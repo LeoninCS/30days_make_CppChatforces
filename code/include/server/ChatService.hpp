@@ -7,6 +7,7 @@
 #include "UserModel.hpp"
 #include "FriendModel.hpp"
 #include "OfflineMessageModel.hpp"
+#include "GroupModel.hpp"
 #include "json.hpp"
 #include <string>
 #include <mutex>
@@ -36,7 +37,14 @@ public:
     
     //添加好友
     void addFriend(const TcpConnectionPtr& conn, const json& js, Timestamp time);
-    
+    //创建群组
+    void createGroup(const TcpConnectionPtr& conn, const json& js, Timestamp time);
+    //加入群组
+    void addGroup(const TcpConnectionPtr& conn, const json& js, Timestamp time);
+    //群组聊天
+    void groupChat(const TcpConnectionPtr& conn, const json& js, Timestamp time);
+    //退出群组
+    void quitGroup(const TcpConnectionPtr& conn, const json& js, Timestamp time);
     //异常重置
     void reset();
 private:
@@ -53,6 +61,7 @@ private:
     UserModel _userModel;
     OfflineMessageModel _offlineMsgModel;
     FriendModel _friendModel;
+    GroupModel _groupModel;
 };
 
 #endif

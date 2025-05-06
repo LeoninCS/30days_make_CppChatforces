@@ -1,7 +1,7 @@
 #ifndef USERMODEL_H
 #define USERMODEL_H
 
-#include "user.hpp"
+#include "User.hpp"
 
 //User表操作类
 class UserModel

@@ -1,7 +1,7 @@
 #ifndef FRIENDMODEL_H
 #define FRIENDMODEL_H
 #include <vector>
-#include "user.hpp"
+#include "User.hpp"
 using namespace std;
 class FriendModel
 {

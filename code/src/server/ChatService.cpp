@@ -19,6 +19,10 @@ ChatService::ChatService() {
     _msgHandlerMap.insert({REG_MSG, std::bind(&ChatService::reg, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)});
     _msgHandlerMap.insert({ONE_CHAT_MSG, std::bind(&ChatService::oneChat, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)});
     _msgHandlerMap.insert({ADD_FRIEND_MSG, std::bind(&ChatService::addFriend, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)});
+    _msgHandlerMap.insert({CREATE_GROUP_MSG, std::bind(&ChatService::createGroup, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)});
+    _msgHandlerMap.insert({ADD_GROUP_MSG, std::bind(&ChatService::addGroup, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)});
+    _msgHandlerMap.insert({GROUP_CHAT_MSG, std::bind(&ChatService::groupChat, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)});
+    _msgHandlerMap.insert({GROUP_QUIT_MSG, std::bind(&ChatService::quitGroup, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)});
 }
 
 
@@ -225,4 +229,69 @@ void ChatService::addFriend(const TcpConnectionPtr& conn, const json& js, Timest
         lock_guard<mutex> lock(_connMutex);
         _friendModel.addFriend(userId, friendId);
     }
+}
+//创建群组
+void ChatService::createGroup(const TcpConnectionPtr& conn, const json& js, Timestamp time) {
+    int userid = js["id"].get<int>();
+    string name = js["groupname"];
+    string desc = js["groupdesc"];
+    Group group(-1,name,desc);
+    if(_groupModel.createGroup(group)) {
+        //创建成功
+        json response;
+        response["msgid"] = CREATE_GROUP_MSG_ACK;
+        response["errno"] = 0;
+        response["groupid"] = group.getId();
+        conn->send(response.dump());
+        //加入群组
+        _groupModel.addGroup(userid, group.getId(), "creator");
+    } else {
+        //创建失败
+        json response;
+        response["msgid"] = CREATE_GROUP_MSG_ACK;
+        response["errno"] = 1;
+        conn->send(response.dump());
+    }
+}
+//加入群组
+void ChatService::addGroup(const TcpConnectionPtr& conn, const json& js, Timestamp time) {
+    int userid = js["id"].get<int>();
+    int groupid = js["groupid"].get<int>();
+    string role = "normal";
+    if(_groupModel.addGroup(userid, groupid, role)) {
+        json response;
+    response["msgid"] = ADD_GROUP_MSG_ACK;
+    response["errno"] = 0;
+    conn->send(response.dump());
+    } else {
+        json response;
+    response["msgid"] = ADD_GROUP_MSG_ACK;
+    response["errno"] = 0;
+    conn->send(response.dump());
+    }
+    
+}
+//群组聊天
+void ChatService::groupChat(const TcpConnectionPtr& conn, const json& js, Timestamp time) {
+    int groupid = js["groupid"].get<int>();
+    int userid = js["id"].get<int>();
+    string msg = js["msg"];
+    vector<int> userVec = _groupModel.queryGroupUsers(userid, groupid);
+    while(!userVec.empty()) {
+        int id = userVec.back();
+        userVec.pop_back();
+        lock_guard<mutex> lock(_connMutex);
+        auto it = _userConnMap.find(id);
+        if(it != _userConnMap.end()) {
+            //在线转发
+            it->second->send(js.dump());
+        } else {
+            //离线存储
+            _offlineMsgModel.insert(id, js);
+        }
+    }
+}
+//退出群组
+void ChatService::quitGroup(const TcpConnectionPtr& conn, const json& js, Timestamp time) {
+    
 }
