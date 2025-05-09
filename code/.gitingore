@@ -47,4 +47,3 @@ build/\*
 
 !bin/.gitkeep
 !build/.gitkeep
-如何保留build文件夹但是忽略里面的内容
