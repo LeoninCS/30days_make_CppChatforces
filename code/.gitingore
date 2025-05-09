@@ -1,0 +1,50 @@
+# Prerequisites
+
+\*.d
+
+# Compiled Object files
+
+\*.slo
+\*.lo
+\*.o
+\*.obj
+
+# Precompiled Headers
+
+\*.gch
+\*.pch
+
+# Compiled Dynamic libraries
+
+\*.so
+\*.dylib
+\*.dll
+
+# Fortran module files
+
+\*.mod
+\*.smod
+
+# Compiled Static libraries
+
+\*.lai
+\*.la
+\*.a
+\*.lib
+
+# Executables
+
+\*.exe
+\*.out
+\*.app
+
+# 忽略 bin/ 和 build/ 中的所有内容
+
+bin/\*
+build/\*
+
+# 但不忽略 bin/ 和 build/ 文件夹本身
+
+!bin/.gitkeep
+!build/.gitkeep
+如何保留build文件夹但是忽略里面的内容
