@@ -46,5 +46,11 @@
   "command": "/usr/bin/g++  -I/home/leon/repositories/30days_make_CppChatforces/code/include -I/home/leon/repositories/30days_make_CppChatforces/code/include/server -I/home/leon/repositories/30days_make_CppChatforces/code/include/server/db -I/home/leon/repositories/30days_make_CppChatforces/code/thirdparty  -std=c++17 -g -g -o CMakeFiles/ChatServer.dir/main.cpp.o -c /home/leon/repositories/30days_make_CppChatforces/code/src/server/main.cpp",
   "file": "/home/leon/repositories/30days_make_CppChatforces/code/src/server/main.cpp",
   "output": "src/server/CMakeFiles/ChatServer.dir/main.cpp.o"
+},
+{
+  "directory": "/home/leon/repositories/30days_make_CppChatforces/code/build/src/client",
+  "command": "/usr/bin/g++  -I/home/leon/repositories/30days_make_CppChatforces/code/include -I/home/leon/repositories/30days_make_CppChatforces/code/include/server -I/home/leon/repositories/30days_make_CppChatforces/code/include/server/db -I/home/leon/repositories/30days_make_CppChatforces/code/thirdparty  -std=c++17 -g -g -o CMakeFiles/ChatClient.dir/main.cpp.o -c /home/leon/repositories/30days_make_CppChatforces/code/src/client/main.cpp",
+  "file": "/home/leon/repositories/30days_make_CppChatforces/code/src/client/main.cpp",
+  "output": "src/client/CMakeFiles/ChatClient.dir/main.cpp.o"
 }
 ]

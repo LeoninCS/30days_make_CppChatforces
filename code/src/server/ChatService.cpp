@@ -1,9 +1,12 @@
 #include "public.hpp"
 #include "ChatService.hpp"
 #include "FriendModel.hpp"
+#include "Group.hpp"
+#include "GroupModel.hpp"
 #include <muduo/base/Logging.h>
 #include <iostream>
 #include <string>
+#include <ctime>
 #include <mutex>
 using namespace std;
 using namespace muduo;
@@ -56,10 +59,16 @@ void ChatService::login(const TcpConnectionPtr& conn, const json& js, Timestamp 
             response["errno"] = 0;
             response["id"] = user.getId();
             response["name"] = user.getName();
+            std::time_t now = std::time(nullptr);
+            char buf[100];
+            std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", localtime(&now));
+
+            response["time"] = buf;
+
             //将离线消息发送给用户
             vector<string> vec = _offlineMsgModel.query(id);
             while (!vec.empty()) {
-                response["msg"] = vec.back();
+                response["offlinemsg"] = vec.back();
                 vec.pop_back();
                 conn->send(response.dump());
             }
@@ -81,6 +90,31 @@ void ChatService::login(const TcpConnectionPtr& conn, const json& js, Timestamp 
                 response["friends"] = friendList;
             } else {
                 response["friends"] = json::array();
+            }
+            //群组信息
+            vector<Group> groupVec = _groupModel.queryGroup(id);
+            if(!groupVec.empty()) {
+                vector<string> groupList;
+                for(auto& group: groupVec) {
+                    json groupInfo;
+                    groupInfo["id"] = group.getId();
+                    groupInfo["groupname"] = group.getName();
+                    groupInfo["groupdesc"] = group.getDesc();
+                    vector<GroupUser> groupUserVec = group.getUsers();
+                    vector<string> groupUserList;
+                    for(auto& groupUser : groupUserVec) {
+                        json userjs;
+                        userjs["id"] = groupUser.getId();
+                        userjs["name"] = groupUser.getName();
+                        userjs["role"] = groupUser.getRole();
+                        userjs["state"] = groupUser.getState();
+                        groupUserList.push_back(userjs.dump());
+                    }    
+                    groupInfo["groupuser"] = groupUserList;
+                }
+                response["groups"] = groupList;
+            } else {
+                response["groups"] = json::array();
             }
         }
     } else {
