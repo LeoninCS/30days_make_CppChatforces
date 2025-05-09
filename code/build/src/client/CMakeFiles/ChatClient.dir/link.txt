@@ -1,1 +1,0 @@
-/usr/bin/g++  -std=c++17 -g -g CMakeFiles/ChatClient.dir/main.cpp.o -o /home/leon/repositories/30days_make_CppChatforces/code/bin/ChatClient  -lpthread 
