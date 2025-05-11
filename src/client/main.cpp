@@ -10,7 +10,9 @@
 #include "json.hpp"
 #include <ctime>
 #include <thread>
+#include <sstream>
 #include "public.hpp"
+#include <unordered_map>
 using json = nlohmann::json;
 using namespace std;
 
@@ -21,7 +23,7 @@ vector<Group> groups;
 //好友
 vector<User> friends;
 //菜单
-void mainMenu();
+void mainMenu(int);
 //用户
 void showCurrentUser();
 
@@ -93,12 +95,12 @@ int main(int argc, char* argv[])
                 // Send the JSON object to the server
                 int len = send(clientfd, request.c_str(), strlen(request.c_str()) + 1, 0);
                 if(len == -1) {
-                    cerr << "send reg respons error" << endl;
+                    cerr << "send login respons error" << endl;
                 } else {
                     char buffer[1024] = {0};
                     len = recv(clientfd, buffer, 1024, 0);
                     if(len == -1) {
-                        cerr << "recv reg respons error" << endl;
+                        cerr << "recv login respons error" << endl;
                     } else {
                         json jsresponse = json::parse(buffer);
                         if(jsresponse["errno"].get<int>() != 0) {
@@ -106,6 +108,10 @@ int main(int argc, char* argv[])
                         } else {
                             _currentUser.setId(jsresponse["id"].get<int>());
                             _currentUser.setName(jsresponse["name"]);
+                            cout << getCurrentTime() << endl;
+                            cout << "id: " <<_currentUser.getId() << endl;
+                            cout << "name: " << _currentUser.getName() << endl;
+                            cout << "this user longins success!" << endl;  
                             //好友
                             if(jsresponse.contains("friends")) {
                                 vector<string> friendVec = jsresponse["friends"];
@@ -154,7 +160,7 @@ int main(int argc, char* argv[])
                             std::thread readTask(readTaskHandler,clientfd);
                             readTask.detach();
 
-                            mainMenu();
+                            mainMenu(clientfd);
                         }
                     }
                 }
@@ -210,8 +216,54 @@ int main(int argc, char* argv[])
     return 0;
 }
 
-void mainMenu() {
+void help(int = 0, string = "");
+void chat(int, string);
+void addfriend(int, string);
+void creategroup(int,string);
+void addgroup(int, string);
+void groupchat(int, string);
+void loginout(int = 0, string = "");
 
+unordered_map<string,string> commandMap = {
+    {"help","显示所有支持的命令,格式help"},
+    {"chat","一对一聊天,格式chat:friendid:message"},
+    {"addfriend","添加好友,格式addfriend:friendid"},
+    {"creategroup","创建群组,格式creategroup:groupname:groupdesc"},
+    {"addgroup","加入群组,格式addgroup:groupid"},
+    {"groupchat","群聊,格式groupchat:groupid:message"},
+    {"loginout","注销登录,格式loginout"}
+};
+
+unordered_map<string,function<void(int, string)>> commandHandlerMap = {
+    {"help",help},
+    {"chat",chat},
+    {"addfriend",addfriend},
+    {"creategroup",creategroup},
+    {"addgroup",addgroup},
+    {"groupchat",groupchat},
+    {"loginout",loginout}
+};
+
+void mainMenu(int clientfd) {
+    help();
+    char buffer[1024] = {0};
+    while(true) {
+        cin.getline(buffer, 1024);
+        string commandbuf(buffer);
+        string command;
+        int idx = commandbuf.find(":");
+        if(idx == -1) {
+            command = commandbuf;
+        } else {
+            command = commandbuf.substr(0, idx);
+        }
+        auto it = commandHandlerMap.find(command);
+        if(it == commandHandlerMap.end()) {
+            cerr << "invalid input command!" << endl;
+            continue;
+        }
+        it->second(clientfd,commandbuf.substr(idx + 1, commandbuf.size() - idx));
+    }
 }
 //用户
 void showCurrentUser() {
@@ -227,10 +279,91 @@ void showFriends() {
 }
 //接收线程
 void readTaskHandler(int clientfd){
-
+    while(true) {
+        char buffer[1024] = {0};
+        int len = recv(clientfd, buffer, 1024, 0);
+        if(len == -1 || len == 0) {
+            close(clientfd);
+            exit(-1);
+        }
+        json js = json::parse(buffer);
+        if(js["msgid"].get<int>() == ONE_CHAT_MSG) {
+            cout << js["time"].get<string>() << " [" << js["id"] << " ]" << js["name"].get<string>() << " said: " << js["msg"].get<string>() << endl;
+            continue;
+        }
+    }
 }
 
 //获取当前时间
 string getCurrentTime() {
-    return " ";
+    auto now = std::chrono::system_clock::now();               
+    std::time_t now_c = std::chrono::system_clock::to_time_t(now);
+
+    std::tm local_tm;
+    localtime_r(&now_c, &local_tm);
+
+    std::ostringstream oss;
+    char buffer[20];
+    strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &local_tm);
+    oss << std::string(buffer); // 格式化输出
+    return oss.str();
+}
+
+void help(int, string) {
+    for(auto &[a,b]:commandMap) {
+        cout << a << "----" << b << endl;
+    }
+    cout << endl;
+}
+
+void addfriend(int clientfd, string str) {
+    int friendid = atoi(str.c_str());
+    json js;
+    js["msgid"] = ADD_FRIEND_MSG;
+    js["id"] = _currentUser.getId();
+    js["name"] = _currentUser.getName();
+    js["friendId"] = clientfd;
+    string buffer = js.dump();
+    int len = send(clientfd, buffer.c_str(), strlen(buffer.c_str()) + 1, 0);
+    if(len == - 1) {
+        cerr << "send addfriend msg error -> " << buffer << endl; 
+    }
+}
+
+void chat(int clientfd, string str) {
+    int idx = str.find(":");
+    if(idx == -1) {
+        cerr << "message is not true" << endl;
+    } else {
+        int friendId = atoi(str.substr(0, idx).c_str());
+        string message = str.substr(idx + 1,(str.size() - idx));
+        json js;
+        js["msgid"] = ONE_CHAT_MSG;
+        js["id"] = _currentUser.getId();
+        js["name"] = _currentUser.getName();
+        js["toid"] = friendId;
+        js["msg"] = message;
+        js["time"] = getCurrentTime();
+        string buffer = js.dump();
+        int len = send(clientfd, buffer.c_str(),strlen(buffer.c_str()) + 1, 0);
+        if(len == -1) {
+            cerr << "send chat msg error" << endl;
+        }
+    }
+}
+
+void creategroup(int clientfd,string str) {
+    int idx = str.find(":");
+}
+
+void addgroup(int clientfd, string str) {
+
+}
+
+void groupchat(int clientfd, string str) {
+
+}
+
+void loginout(int, string) {
+
 }

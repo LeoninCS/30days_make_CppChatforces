@@ -59,12 +59,7 @@ void ChatService::login(const TcpConnectionPtr& conn, const json& js, Timestamp 
             response["errno"] = 0;
             response["id"] = user.getId();
             response["name"] = user.getName();
-            std::time_t now = std::time(nullptr);
-            char buf[100];
-            std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", localtime(&now));
-
-            response["time"] = buf;
-
+            
             //将离线消息发送给用户
             vector<string> vec = _offlineMsgModel.query(id);
             while (!vec.empty()) {
@@ -116,6 +111,7 @@ void ChatService::login(const TcpConnectionPtr& conn, const json& js, Timestamp 
             } else {
                 response["groups"] = json::array();
             }
+            conn->send(response.dump());
         }
     } else {
         
@@ -163,45 +159,6 @@ void ChatService::reg(const TcpConnectionPtr& conn, const json& js, Timestamp ti
         //失败
     }
 }
-//debug
-/*
-void ChatService::reg(const TcpConnectionPtr& conn, const json& js, Timestamp time) {
-    std::cout << "进入 ChatService::reg()" << std::endl;
-    try {
-        string name = js.at("name").get<string>();
-        string password = js.at("password").get<string>();
-        std::cout << "注册用户名: " << name << ", 密码: " << password << std::endl;
-
-        User user;
-        user.setName(name);
-        user.setPassword(password);
-
-        bool state = _userModel.insert(user);
-        std::cout << "注册数据库插入结果: " << (state ? "成功" : "失败") << std::endl;
-
-        json response;
-        response["msgid"] = REG_MSG_ACK;
-
-        if (state) {
-            response["errno"] = 0;
-            response["id"] = user.getId();
-        } else {
-            response["errno"] = 1;
-        }
-
-        std::string res = response.dump();
-        std::cout << "即将发送的响应: " << res << std::endl;
-        conn->send(res + "\n");
-
-    } catch (std::exception& e) {
-        std::cerr << "reg() 异常: " << e.what() << std::endl;
-        json response;
-        response["msgid"] = REG_MSG_ACK;
-        response["errno"] = 2;
-        conn->send(response.dump() + "\n");
-    }
-}*/
-
 
 MsgHandler ChatService::getHandler(int msgid) {
     //如果没有对应的处理器，返回一个空的处理器
@@ -235,7 +192,7 @@ void ChatService::clientCloseException(const TcpConnectionPtr& conn) {
 
 //一对一聊天
 void ChatService::oneChat(const TcpConnectionPtr& conn, const json& js, Timestamp time) {
-    int toid = js["id"].get<int>();
+    int toid = js["toid"].get<int>();
     {
         lock_guard<mutex> lock(_connMutex);
         auto it = _userConnMap.find(toid);
