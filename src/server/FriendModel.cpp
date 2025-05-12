@@ -4,7 +4,7 @@
 using namespace std;
 
 //添加好友
-void FriendModel::addFriend(int userId, int friendId) {
+bool FriendModel::addFriend(int userId, int friendId) {
     char sql[1024] = {0};
     sprintf(sql, "insert into friend(userId, friendId) values(%d, %d)", userId, friendId);
     MySQL mysql;
@@ -12,12 +12,14 @@ void FriendModel::addFriend(int userId, int friendId) {
         std::cout << "MySQL connect success!" << std::endl;
         if (mysql.update(sql)) {
             std::cout << "添加好友成功" << std::endl;
+            return true;
         } else {
             std::cerr << "添加好友失败" << std::endl;
         }
     } else {
         std::cerr << "MySQL connect failed!" << std::endl;
     }
+    return false;
 }
 
 //返回好友列表

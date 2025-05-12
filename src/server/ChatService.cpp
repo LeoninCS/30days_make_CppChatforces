@@ -26,6 +26,7 @@ ChatService::ChatService() {
     _msgHandlerMap.insert({ADD_GROUP_MSG, std::bind(&ChatService::addGroup, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)});
     _msgHandlerMap.insert({GROUP_CHAT_MSG, std::bind(&ChatService::groupChat, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)});
     _msgHandlerMap.insert({GROUP_QUIT_MSG, std::bind(&ChatService::quitGroup, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)});
+    _msgHandlerMap.insert({LOGOUT_MSG, std::bind(&ChatService::logout, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)});
 }
 
 
@@ -59,6 +60,7 @@ void ChatService::login(const TcpConnectionPtr& conn, const json& js, Timestamp 
             response["errno"] = 0;
             response["id"] = user.getId();
             response["name"] = user.getName();
+            response["state"] = user.getState();
             
             //将离线消息发送给用户
             vector<string> vec = _offlineMsgModel.query(id);
@@ -134,6 +136,21 @@ void ChatService::login(const TcpConnectionPtr& conn, const json& js, Timestamp 
 
     
     LOG_INFO << "do login";
+}
+//登出
+void ChatService::logout(const TcpConnectionPtr& conn, const json& js, Timestamp time) {
+    int id = js["id"];
+    User user = _userModel.query(id);
+    {
+        lock_guard<mutex> lock(_connMutex);
+        auto it = _userConnMap.find(id);
+        if(it != _userConnMap.end()) {
+            _userConnMap.erase(id);
+        }
+    }
+        LOG_INFO << "set offline";
+        user.setState("offline");
+        _userModel.updateState(user);
 }
 //注册
 void ChatService::reg(const TcpConnectionPtr& conn, const json& js, Timestamp time) {
@@ -218,7 +235,19 @@ void ChatService::addFriend(const TcpConnectionPtr& conn, const json& js, Timest
     int friendId = js["friendId"].get<int>();
     {
         lock_guard<mutex> lock(_connMutex);
-        _friendModel.addFriend(userId, friendId);
+        if(_friendModel.addFriend(userId, friendId)) {
+                //创建成功
+            json response;
+            response["msgid"] = ADD_FRIEND_MSG_ACK;
+            response["errno"] = 0;
+            conn->send(response.dump());
+        } else {
+            //创建失败
+            json response;
+            response["msgid"] = ADD_FRIEND_MSG_ACK;
+            response["errno"] = 1;
+            conn->send(response.dump());
+        }
     }
 }
 //创建群组
@@ -251,14 +280,14 @@ void ChatService::addGroup(const TcpConnectionPtr& conn, const json& js, Timesta
     string role = "normal";
     if(_groupModel.addGroup(userid, groupid, role)) {
         json response;
-    response["msgid"] = ADD_GROUP_MSG_ACK;
-    response["errno"] = 0;
-    conn->send(response.dump());
+        response["msgid"] = ADD_GROUP_MSG_ACK;
+        response["errno"] = 0;
+        conn->send(response.dump());
     } else {
         json response;
-    response["msgid"] = ADD_GROUP_MSG_ACK;
-    response["errno"] = 0;
-    conn->send(response.dump());
+        response["msgid"] = ADD_GROUP_MSG_ACK;
+        response["errno"] = 1;
+        conn->send(response.dump());
     }
     
 }

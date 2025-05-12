@@ -7,7 +7,7 @@ class FriendModel
 {
 public:
     //添加好友
-    void addFriend(int userId, int friendId);
+    bool addFriend(int userId, int friendId);
 
     //返回好友列表
     vector<User> query(int userId);

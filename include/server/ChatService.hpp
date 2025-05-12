@@ -26,6 +26,8 @@ public:
     static ChatService* instance();
     //登录
     void login(const TcpConnectionPtr& conn, const json& js, Timestamp time);
+    //登出
+    void logout(const TcpConnectionPtr& conn, const json& js, Timestamp time);
     //注册
     void reg(const TcpConnectionPtr& conn, const json& js, Timestamp time);
     //获取消息对应的处理器
