@@ -12,10 +12,19 @@ void resetHandler(int sig)
 }
 
 
-int main()
+int main(int argc, char* argv[])
 {
+
+    if (argc < 3)
+    {
+        cout << "Usage: " << argv[0] << " <ip> <port>" << endl;
+        return -1;
+    }
+    char *ip = argv[1];
+    uint16_t port = atoi(argv[2]);
+
     EventLoop loop;
-    InetAddress addr("127.0.0.1", 8888);
+    InetAddress addr(ip, port);
     ChatServer server(&loop, addr, "ChatServer");
     
     server.start();
