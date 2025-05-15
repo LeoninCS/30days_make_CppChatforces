@@ -1,5 +1,5 @@
-#ifndef CHATSERVICE_H
-#define CHATSERVICE_H
+#ifndef CHATSERVICE_HPP
+#define CHATSERVICE_HPP
 
 #include <muduo/net/TcpServer.h>
 #include <unordered_map>
@@ -11,6 +11,7 @@
 #include "json.hpp"
 #include <string>
 #include <mutex>
+#include "redis.hpp"
 
 using namespace std;
 using namespace muduo;
@@ -49,6 +50,8 @@ public:
     void quitGroup(const TcpConnectionPtr& conn, const json& js, Timestamp time);
     //异常重置
     void reset();
+    //处理redis订阅消息
+    void handleRedisSubscribeMessage(int userid, string msg);
 private:
     ChatService();
     //存取id和消息处理函数
@@ -62,8 +65,9 @@ private:
     //操作用户表的对象
     UserModel _userModel;
     OfflineMessageModel _offlineMsgModel;
-    FriendModel _friendModel;
     GroupModel _groupModel;
+    FriendModel _friendModel;
+    Redis _redis;
 };
 
 #endif

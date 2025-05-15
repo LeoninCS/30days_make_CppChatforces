@@ -1,5 +1,5 @@
-#ifndef CHATSERVER_H
-#define CHATSERVER_H
+#ifndef CHATSERVER_HPP
+#define CHATSERVER_HPP
 
 #include <muduo/net/TcpServer.h>
 #include <muduo/net/EventLoop.h>

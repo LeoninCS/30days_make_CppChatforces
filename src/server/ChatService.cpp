@@ -27,6 +27,9 @@ ChatService::ChatService() {
     _msgHandlerMap.insert({GROUP_CHAT_MSG, std::bind(&ChatService::groupChat, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)});
     _msgHandlerMap.insert({GROUP_QUIT_MSG, std::bind(&ChatService::quitGroup, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)});
     _msgHandlerMap.insert({LOGOUT_MSG, std::bind(&ChatService::logout, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)});
+    if(_redis.connect()) {
+        _redis.init_notify_handler(std::bind(&ChatService::handleRedisSubscribeMessage, this, std::placeholders::_1, std::placeholders::_2));
+    }
 }
 
 
@@ -54,6 +57,7 @@ void ChatService::login(const TcpConnectionPtr& conn, const json& js, Timestamp 
             LOG_INFO << "set online";
             user.setState("online");
             _userModel.updateState(user);
+            _redis.subscribe(id);
             //登录成功
             json response;
             response["msgid"] = LOGIN_MSG_ACK;
@@ -148,9 +152,10 @@ void ChatService::logout(const TcpConnectionPtr& conn, const json& js, Timestamp
             _userConnMap.erase(id);
         }
     }
-        LOG_INFO << "set offline";
-        user.setState("offline");
-        _userModel.updateState(user);
+    LOG_INFO << "set offline";
+    user.setState("offline");
+    _userModel.updateState(user);
+    _redis.unsubscribe(id);
 }
 //注册
 void ChatService::reg(const TcpConnectionPtr& conn, const json& js, Timestamp time) {
@@ -204,6 +209,7 @@ void ChatService::clientCloseException(const TcpConnectionPtr& conn) {
     if (user.getId() != -1) {
         user.setState("offline");
         _userModel.updateState(user);
+        _redis.unsubscribe(user.getId());
     }
 }
 
@@ -217,11 +223,16 @@ void ChatService::oneChat(const TcpConnectionPtr& conn, const json& js, Timestam
             //在线转发
             it->second->send(js.dump());
             return;
-        } else {
-            //离线存储
-            _offlineMsgModel.insert(toid, js);
         }
     }
+    User user = _userModel.query(toid);
+    if (user.getState() == "online") {
+        // 在线转发
+        _redis.publish(toid, js.dump());
+        return;
+    }
+    // 离线存储
+    _offlineMsgModel.insert(toid, js);
 }
 
 //重置状态信息，全部下线
@@ -306,6 +317,12 @@ void ChatService::groupChat(const TcpConnectionPtr& conn, const json& js, Timest
             //在线转发
             it->second->send(js.dump());
         } else {
+            User user = _userModel.query(id);
+            if(user.getState() == "online") {
+                // 在线转发
+                _redis.publish(id, js.dump());
+                continue;
+            }
             //离线存储
             _offlineMsgModel.insert(id, js);
         }
@@ -313,5 +330,14 @@ void ChatService::groupChat(const TcpConnectionPtr& conn, const json& js, Timest
 }
 //退出群组
 void ChatService::quitGroup(const TcpConnectionPtr& conn, const json& js, Timestamp time) {
-    
+}
+
+void ChatService::handleRedisSubscribeMessage(int userid, string msg) {
+    lock_guard<mutex> lock(_connMutex);
+    auto it = _userConnMap.find(userid);
+    if(it!= _userConnMap.end()) {
+        it->second->send(msg);
+        return;
+    }
+    _offlineMsgModel.insert(userid, msg);
 }
