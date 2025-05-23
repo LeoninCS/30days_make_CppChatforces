@@ -12,6 +12,8 @@
 #include <thread>
 #include <sstream>
 #include "public.hpp"
+#include <semaphore.h>
+#include <atomic>
 #include <unordered_map>
 using json = nlohmann::json;
 using namespace std;
@@ -29,6 +31,12 @@ void showCurrentUser(int = 0, string = "");
 
 void showGroups(int = 0, string = "");
 void showFriends(int = 0, string = "");
+
+//用于读写进程间通信
+sem_t sem;
+//记录登录状态
+atomic_bool loginStatus{false};
+
 //接收线程
 void readTaskHandler(int clientfd);
 
@@ -67,6 +75,11 @@ int main(int argc, char* argv[])
         exit(0);
     }
 
+
+    sem_init(&sem, 0, 0);
+    std::thread readTask(readTaskHandler,clientfd);
+    readTask.detach();
+    
     while(true) {
         cout << "===========================" << endl;
         cout << "1. Login" << endl;
@@ -92,86 +105,20 @@ int main(int argc, char* argv[])
                 js["id"] = id;
                 js["password"] = password;
                 string request = js.dump(); 
+
+
+                loginStatus = false;
+
                 // Send the JSON object to the server
                 int len = send(clientfd, request.c_str(), strlen(request.c_str()) + 1, 0);
+                
                 if(len == -1) {
                     cerr << "send login respons error" << endl;
-                } else {
-                    char buffer[1024] = {0};
-                    len = recv(clientfd, buffer, 1024, 0);
-                    if(len == -1) {
-                        cerr << "recv login respons error" << endl;
-                    } else {
-                        json jsresponse = json::parse(buffer);
-                        if(jsresponse["errno"].get<int>() != 0) {
-                            cerr << jsresponse["errmsg"] << endl;
-                        } else {
-                            _currentUser.setId(jsresponse["id"].get<int>());
-                            _currentUser.setName(jsresponse["name"]);
-                            _currentUser.setState(jsresponse["state"]);
-                            cout << getCurrentTime() << endl;
-                            cout << "id: " <<_currentUser.getId() << endl;
-                            cout << "name: " << _currentUser.getName() << endl;
-                            cout << "this user longins success!" << endl;  
-                            //好友
-                            if(jsresponse.contains("friends")) {
-                                friends.clear();
-                                vector<string> friendVec = jsresponse["friends"];
-                                for(auto & userstr : friendVec) {
-                                    json friendUserjs = json::parse(userstr);
-                                    User user;
-                                    user.setId(friendUserjs["id"].get<int>());
-                                    user.setName(friendUserjs["name"]);   
-                                    user.setState(friendUserjs["state"]);
-                                    friends.push_back(user);                            
-                                }
-                            }
-                            //群组
-                            if(jsresponse.contains("groups")) {
-                                groups.clear();
-                                vector<string> groupVec = jsresponse["groups"];
-                                for(auto & groupstr:groupVec) {
-                                    json groupjs = json::parse(groupstr);
-                                    Group group;
-                                    group.setId(groupjs["id"].get<int>());
-                                    group.setName(groupjs["groupname"]);
-                                    group.setDesc(groupjs["groupdesc"]);
-
-                                    vector<string> groupusersstr = groupjs["groupuser"];
-                                    for(auto &groupuserstr: groupusersstr) {
-                                        json groupuserjs = json::parse(groupuserstr);
-                                        GroupUser groupuser;
-                                        groupuser.setId(groupuserjs["id"].get<int>());
-                                        groupuser.setName(groupuserjs["name"]);
-                                        groupuser.setRole(groupuserjs["role"]);
-                                        groupuser.setState(groupuserjs["state"]);
-                                        group.getUsers().push_back(groupuser);
-                                    }
-                                    groups.push_back(group);
-                                }
-                            }
-                            showCurrentUser();
-                            //离线消息
-                            if(jsresponse.contains("offlinemsg")) {
-                                vector<string> offlinemsg = jsresponse["offlinemsg"];
-                                for(auto &msgstr: offlinemsg) {
-                                    json msg = json::parse(msgstr);
-                                    if(js["msgid"].get<int>() == ONE_CHAT_MSG) {
-                                        cout << "聊天消息: " << msg["time"] << "[" << msg["id"] << "]" << msg["name"] << "said: " << msg["msg"] << endl;
-                                    } else {
-                                        cout << "群聊消息: " << msg["groupname"] << "   " << msg["time"] << "[" << msg["id"] << "]" << msg["name"] << "said: " << msg["msg"] << endl;
-                                    }
-                                }
-                            }
-                            static int readTaskNumber = 0;
-                            if(readTaskNumber == 0) {
-                                std::thread readTask(readTaskHandler,clientfd);
-                                readTask.detach();
-                                readTaskNumber++;
-                            }
-                            mainMenu(clientfd);
-                        }
-                    }
+                }
+                sem_wait(&sem);
+                
+                if(loginStatus) {
+                    mainMenu(clientfd);
                 }
                 break;
             }
@@ -188,25 +135,14 @@ int main(int argc, char* argv[])
                 js["name"] = name;
                 js["password"] = password;
                 string request = js.dump();
+
+
                 //cout << "发送请求: " << request << endl;
                 int len = send(clientfd,request.c_str(),strlen(request.c_str()) + 1, 0);
                 if(len == -1) {
                     cerr << "send reg response error!" << endl;
-                } else {
-                    char buffer[1024];
-                    len = recv(clientfd,buffer, 1024, 0);
-                    if(len == -1) {
-                        cerr << "recv reg response error!";
-                    } else { 
-                        string raw(buffer,len);
-                        json jsresponse = json::parse(raw);
-                        if(jsresponse["errno"].get<int>() != 0) {
-                            cerr << "Already exist, reg error!" << endl;
-                        } else {
-                            cout << name << "have regist success,userid is :" << jsresponse["id"] << "don't forget it" << endl;
-                        }
-                    }
-                }
+                } 
+                sem_wait(&sem);
                 break;
             }
             case 3: {
@@ -214,6 +150,7 @@ int main(int argc, char* argv[])
                 exit(0);
             }
                 cout << "Exiting..." << endl;
+                sem_destroy(&sem);
                 close(clientfd);
                 return 0;
             default: {
@@ -224,6 +161,80 @@ int main(int argc, char* argv[])
     }
     return 0;
 }
+
+void doLoginResponse(json& jsresponse) {
+    if(jsresponse["errno"].get<int>() != 0) {
+        cerr << jsresponse["errmsg"] << endl;
+        loginStatus = false;
+    } else {
+        _currentUser.setId(jsresponse["id"].get<int>());
+        _currentUser.setName(jsresponse["name"]);
+        _currentUser.setState(jsresponse["state"]);
+        cout << getCurrentTime() << endl;
+        cout << "id: " <<_currentUser.getId() << endl;
+        cout << "name: " << _currentUser.getName() << endl;
+        cout << "this user longins success!" << endl;  
+        //好友
+        if(jsresponse.contains("friends")) {
+            friends.clear();
+            vector<string> friendVec = jsresponse["friends"];
+            for(auto & userstr : friendVec) {
+                json friendUserjs = json::parse(userstr);
+                User user;
+                user.setId(friendUserjs["id"].get<int>());
+                user.setName(friendUserjs["name"]);   
+                user.setState(friendUserjs["state"]);
+                friends.push_back(user);                            
+            }
+        }
+        //群组
+        if(jsresponse.contains("groups")) {
+            groups.clear();
+            vector<string> groupVec = jsresponse["groups"];
+            for(auto & groupstr:groupVec) {
+                json groupjs = json::parse(groupstr);
+                Group group;
+                group.setId(groupjs["id"].get<int>());
+                group.setName(groupjs["groupname"]);
+                group.setDesc(groupjs["groupdesc"]);
+
+                vector<string> groupusersstr = groupjs["groupuser"];
+                for(auto &groupuserstr: groupusersstr) {
+                    json groupuserjs = json::parse(groupuserstr);
+                    GroupUser groupuser;
+                    groupuser.setId(groupuserjs["id"].get<int>());
+                    groupuser.setName(groupuserjs["name"]);
+                    groupuser.setRole(groupuserjs["role"]);
+                    groupuser.setState(groupuserjs["state"]);
+                    group.getUsers().push_back(groupuser);
+                }
+                groups.push_back(group);
+            }
+        }
+        //离线消息
+        if(jsresponse.contains("offlinemsg")) {
+            vector<string> offlinemsg = jsresponse["offlinemsg"];
+            for(auto &msgstr: offlinemsg) {
+                json msg = json::parse(msgstr);
+                if(msg["msgid"].get<int>() == ONE_CHAT_MSG) {
+                    cout << "聊天消息: " << msg["time"] << "[" << msg["id"] << "]" << msg["name"] << "said: " << msg["msg"] << endl;
+                } else {
+                    cout << "群聊消息: " << msg["groupname"] << "   " << msg["time"] << "[" << msg["id"] << "]" << msg["name"] << "said: " << msg["msg"] << endl;
+                }
+            }
+        }
+        loginStatus = true;
+    }
+}
+
+void doRegResponse(json & jsresponse) {
+    if(jsresponse["errno"].get<int>() != 0) {
+        cerr << jsresponse["name"] << " already exist, reg error!" << endl;
+    } else {
+        cout << jsresponse["name"] << "have regist success,userid is :" << jsresponse["id"] << "don't forget it" << endl;
+    }       
+}
+
 
 void help(int = 0, string = "");
 void chat(int, string);
@@ -262,7 +273,7 @@ unordered_map<string,function<void(int, string)>> commandHandlerMap = {
 void mainMenu(int clientfd) {
     help();
     char buffer[1024] = {0};
-    while(true) {
+    while(_currentUser.getState() == "online") {
         cin.getline(buffer, 1024);
         string commandbuf(buffer);
         string command;
@@ -307,7 +318,7 @@ void showFriends(int, string) {
 }
 //接收线程
 void readTaskHandler(int clientfd){
-    while(_currentUser.getState() == "online") {
+    while(true) {
         char buffer[1024] = {0};
         int len = recv(clientfd, buffer, 1024, 0);
         if(len == -1 || len == 0) {
@@ -317,6 +328,20 @@ void readTaskHandler(int clientfd){
         json js = json::parse(buffer);
         if(js["msgid"].get<int>() == ONE_CHAT_MSG) {
             cout << js["time"].get<string>() << " [" << js["id"] << " ]" << js["name"].get<string>() << " said: " << js["msg"].get<string>() << endl;
+            continue;
+        }
+        if(js["msgid"].get<int>() == GROUP_CHAT_MSG) {
+            cout << js["groupname"].get<string>() << " [" << js["id"] << " ]" << js["name"].get<string>() << " said: " << js["msg"].get<string>() << endl;
+            continue;
+        }
+        if(js["msgid"].get<int>() == LOGIN_MSG_ACK) {
+            doLoginResponse(js);
+            sem_post(&sem);
+            continue;
+        }
+        if(js["msgid"].get<int>() == REG_MSG_ACK) {
+            doRegResponse(js);
+            sem_post(&sem);
             continue;
         }
     }
